@@ -4835,6 +4835,13 @@ void PortsOrch::doLagTask(Consumer &consumer)
                 continue;
             }
 
+            if (!lag.m_child_ports.empty())
+            {
+                SWSS_LOG_NOTICE("LAG %s still has subport child, can't be removed", lag.m_alias.c_str());
+                it++;
+                continue;
+            }
+
             if (removeLag(lag))
                 it = consumer.m_toSync.erase(it);
             else
@@ -5633,12 +5640,14 @@ bool PortsOrch::removeBridgePort(Port &port)
             return parseHandleSaiStatusFailure(handle_status);
         }
     }
-
-    if (!setHostIntfsStripTag(port, SAI_HOSTIF_VLAN_TAG_STRIP))
+    if (port.m_child_ports.empty())
     {
-        SWSS_LOG_ERROR("Failed to set %s for hostif of port %s",
-                hostif_vlan_tag[SAI_HOSTIF_VLAN_TAG_STRIP], port.m_alias.c_str());
-        return false;
+        if (!setHostIntfsStripTag(port, SAI_HOSTIF_VLAN_TAG_STRIP))
+        {
+            SWSS_LOG_ERROR("Failed to set %s for hostif of port %s",
+                    hostif_vlan_tag[SAI_HOSTIF_VLAN_TAG_STRIP], port.m_alias.c_str());
+            return false;
+        }
     }
 
     //Flush the FDB entires corresponding to the port
@@ -6496,7 +6505,7 @@ bool PortsOrch::addLagMember(Port &lag, Port &port, string member_status)
 
     m_portList[lag.m_alias] = lag;
 
-    if (lag.m_bridge_port_id > 0)
+    if ((lag.m_bridge_port_id > 0) || !lag.m_child_ports.empty())
     {
         if (!setHostIntfsStripTag(port, SAI_HOSTIF_VLAN_TAG_KEEP))
         {
@@ -6544,7 +6553,7 @@ bool PortsOrch::removeLagMember(Port &lag, Port &port)
     lag.m_members.erase(port.m_alias);
     m_portList[lag.m_alias] = lag;
 
-    if (lag.m_bridge_port_id > 0)
+    if ((lag.m_bridge_port_id > 0) || !lag.m_child_ports.empty())
     {
         if (!setHostIntfsStripTag(port, SAI_HOSTIF_VLAN_TAG_STRIP))
         {
@@ -6601,6 +6610,10 @@ bool PortsOrch::setCollectionOnLagMember(Port &lagMember, bool enableCollection)
 {
     /* Port must be LAG member */
     assert(lagMember.m_lag_member_id);
+    if (!lagMember.m_lag_member_id)
+    {
+        return false;
+    }
 
     sai_status_t status = SAI_STATUS_FAILURE;
     sai_attribute_t attr {};
@@ -6632,6 +6645,10 @@ bool PortsOrch::setDistributionOnLagMember(Port &lagMember, bool enableDistribut
 {
     /* Port must be LAG member */
     assert(lagMember.m_lag_member_id);
+    if (!lagMember.m_lag_member_id)
+    {
+        return false;
+    }
 
     sai_status_t status = SAI_STATUS_FAILURE;
     sai_attribute_t attr {};
