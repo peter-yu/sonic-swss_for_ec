@@ -2249,7 +2249,7 @@ bool PortsOrch::setPortPvid(Port &port, sai_uint32_t pvid)
 
     if (port.m_rif_id)
     {
-        SWSS_LOG_ERROR("pvid setting for router interface %s is not allowed", port.m_alias.c_str());
+        SWSS_LOG_NOTICE("pvid setting for router interface %s is not allowed", port.m_alias.c_str());
         return false;
     }
 
@@ -6497,7 +6497,10 @@ bool PortsOrch::addLagMember(Port &lag, Port &port, string member_status)
     sai_uint32_t pvid;
     if (getPortPvid(lag, pvid))
     {
-        setPortPvid (port, pvid);
+        if(!setPortPvid (port, pvid))
+        {
+            return false;
+        }
     }
 
     sai_attribute_t attr;
